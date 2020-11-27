@@ -16,6 +16,8 @@ class VirtualMachineViewModel: NSObject, ObservableObject, VZVirtualMachineDeleg
     @Published var kernelURL: URL?
     @Published var initialRamdiskURL: URL?
     @Published var bootableImageURL: URL?
+    @Published var extraImageURL: URL?
+    @Published var commandLine: String? = "root=/dev/mapper/fedora_fedora-root ro rd.lvm.lv=fedora_fedora/root console=hvc0"
     
     @Published var state: VZVirtualMachine.State?
     
@@ -66,7 +68,8 @@ class VirtualMachineViewModel: NSObject, ObservableObject, VZVirtualMachineDeleg
     func start() {
         guard let kernelURL = kernelURL,
               let initialRamdiskURL = initialRamdiskURL,
-              let bootableImageURL = bootableImageURL else {
+              let bootableImageURL = bootableImageURL,
+              let commandLine = commandLine else {
             return
         }
         
@@ -75,7 +78,7 @@ class VirtualMachineViewModel: NSObject, ObservableObject, VZVirtualMachineDeleg
         
         let bootloader = VZLinuxBootLoader(kernelURL: kernelURL)
         bootloader.initialRamdiskURL = initialRamdiskURL
-        bootloader.commandLine = "console=hvc0"
+        bootloader.commandLine = commandLine
         
         let serial = VZVirtioConsoleDeviceSerialPortConfiguration()
         
@@ -93,7 +96,7 @@ class VirtualMachineViewModel: NSObject, ObservableObject, VZVirtualMachineDeleg
         do {
             blockAttachment = try VZDiskImageStorageDeviceAttachment(
                 url: bootableImageURL,
-                readOnly: true
+                readOnly: false
             )
         } catch {
             NSLog("Failed to load bootableImage: \(error)")
@@ -101,6 +104,22 @@ class VirtualMachineViewModel: NSObject, ObservableObject, VZVirtualMachineDeleg
         }
         
         let blockDevice = VZVirtioBlockDeviceConfiguration(attachment: blockAttachment)
+
+        var extraBlockDevice: VZVirtioBlockDeviceConfiguration? = nil
+        if let extraImageURL = extraImageURL {
+            let extraBlockAttachment: VZDiskImageStorageDeviceAttachment
+            do {
+                extraBlockAttachment = try VZDiskImageStorageDeviceAttachment(
+                    url: extraImageURL,
+                    readOnly: false
+                )
+            } catch {
+                NSLog("Failed to load extraImage: \(error)")
+                return
+            }
+            
+            extraBlockDevice = VZVirtioBlockDeviceConfiguration(attachment: extraBlockAttachment)
+        }
         
         let networkDevice = VZVirtioNetworkDeviceConfiguration()
         networkDevice.attachment = VZNATNetworkDeviceAttachment()
@@ -112,7 +131,11 @@ class VirtualMachineViewModel: NSObject, ObservableObject, VZVirtualMachineDeleg
         config.entropyDevices = [entropy]
         config.memoryBalloonDevices = [memoryBalloon]
         config.serialPorts = [serial]
-        config.storageDevices = [blockDevice]
+        if let extraBlockDevice = extraBlockDevice {
+            config.storageDevices = [blockDevice, extraBlockDevice]
+        } else {
+            config.storageDevices = [blockDevice]
+        }
         config.networkDevices = [networkDevice]
                 
         do {
@@ -164,7 +187,7 @@ class VirtualMachineViewModel: NSObject, ObservableObject, VZVirtualMachineDeleg
     }
     
     func showConsole() {
-        consoleWindow.setContentSize(NSSize(width: 400, height: 300))
+        consoleWindow.setContentSize(NSSize(width: 635, height: 390))
         consoleWindow.title = "Console"
         consoleWindowController.showWindow(nil)
     }
