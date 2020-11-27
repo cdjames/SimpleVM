@@ -12,6 +12,14 @@ struct ContentView: View {
     
     @StateObject var viewModel = VirtualMachineViewModel()
     
+    var commandLine: Binding<String> {
+        .init(get: {
+            viewModel.commandLine ?? ""
+        }, set: {
+            viewModel.commandLine = $0
+        })
+    }
+    
     var body: some View {
         VStack(alignment: .leading) {
             Text("vmlinuz: \(viewModel.kernelURL?.lastPathComponent ?? "(Drag to here)")")
@@ -34,6 +42,16 @@ struct ContentView: View {
                     processDropItem(of: .image, items: itemProviders)
                     return true
                 }
+
+            Text("extra image: \(viewModel.extraImageURL?.lastPathComponent ?? "(Drag to here)")")
+                .padding([.top, .bottom])
+                .onDrop(of: [.fileURL], isTargeted: nil) { itemProviders -> Bool in
+                    processDropItem(of: .extra, items: itemProviders)
+                    return true
+                }
+            
+            Text("Command Line:")
+            TextField("Command Line", text: commandLine)
             
             Spacer()
             
@@ -73,6 +91,7 @@ struct ContentView: View {
         case kernel
         case ramdisk
         case image
+        case extra
     }
     
     private func processDropItem(of type: DropItemType,
@@ -95,6 +114,8 @@ struct ContentView: View {
                     viewModel.initialRamdiskURL = url
                 case .image:
                     viewModel.bootableImageURL = url
+                case .extra:
+                    viewModel.extraImageURL = url
                 }
             }
         }
